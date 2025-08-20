@@ -1,0 +1,281 @@
+
+
+
+Code :: 
+#include <iostream>
+#include <vector>
+#include <string>
+#include <memory>
+
+enum class Color
+{
+    White,
+    Black
+};
+
+class Piece
+{
+protected:
+    Color color;
+    char symbol;
+
+public:
+    Piece(Color c, char s) : color(c), symbol(s) {}
+    virtual ~Piece() = default;
+
+    Color getColor() const { return color; }
+    char getSymbol() const { return symbol; }
+
+    virtual bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const = 0;
+};
+
+class Pawn : public Piece
+{
+public:
+    Pawn(Color c) : Piece(c, c == Color::White ? 'P' : 'p') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        int direction = (color == Color::White) ? -1 : 1;
+        // Move forward one square
+        if (toX == fromX + direction && toY == fromY && !board[toX][toY])
+        {
+            return true;
+        }
+        // Move forward two squares from initial position
+        if ((fromX == (color == Color::White ? 6 : 1)) && toX == fromX + 2 * direction && toY == fromY && !board[toX][toY] && !board[fromX + direction][toY])
+        {
+            return true;
+        }
+        // Capture diagonally
+        if (toX == fromX + direction && abs(toY - fromY) == 1 && board[toX][toY] && board[toX][toY]->getColor() != color)
+        {
+            return true;
+        }
+        return false;
+    }
+};
+
+class Rook : public Piece
+{
+public:
+    Rook(Color c) : Piece(c, c == Color::White ? 'R' : 'r') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        if (fromX != toX && fromY != toY)
+            return false;
+        int stepX = (toX > fromX) ? 1 : (toX < fromX) ? -1
+                                                      : 0;
+        int stepY = (toY > fromY) ? 1 : (toY < fromY) ? -1
+                                                      : 0;
+        int x = fromX + stepX, y = fromY + stepY;
+        while (x != toX || y != toY)
+        {
+            if (board[x][y])
+                return false;
+            x += stepX;
+            y += stepY;
+        }
+        return !board[toX][toY] || board[toX][toY]->getColor() != color;
+    }
+};
+
+// Add other piece types (Knight, Bishop, Queen, King) similarly
+class Knight : public Piece
+{
+public:
+    Knight(Color c) : Piece(c, c == Color::White ? 'N' : 'n') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        int dx = abs(toX - fromX), dy = abs(toY - fromY);
+        return (dx == 2 && dy == 1) || (dx == 1 && dy == 2);
+    }
+};
+
+class Bishop : public Piece
+{
+public:
+    Bishop(Color c) : Piece(c, c == Color::White ? 'B' : 'b') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        if (abs(toX - fromX) != abs(toY - fromY))
+            return false;
+        int stepX = (toX > fromX) ? 1 : -1;
+        int stepY = (toY > fromY) ? 1 : -1;
+        int x = fromX + stepX, y = fromY + stepY;
+        while (x != toX && y != toY)
+        {
+            if (board[x][y])
+                return false;
+            x += stepX;
+            y += stepY;
+        }
+        return !board[toX][toY] || board[toX][toY]->getColor() != color;
+    }
+};
+
+class Queen : public Piece
+{
+public:
+    Queen(Color c) : Piece(c, c == Color::White ? 'Q' : 'q') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        Rook rook(color);
+        Bishop bishop(color);
+        return rook.isValidMove(fromX, fromY, toX, toY, board) || bishop.isValidMove(fromX, fromY, toX, toY, board);
+    }
+};
+
+class King : public Piece
+{
+public:
+    King(Color c) : Piece(c, c == Color::White ? 'K' : 'k') {}
+
+    bool isValidMove(int fromX, int fromY, int toX, int toY, const std::vector<std::vector<std::shared_ptr<Piece>>> &board) const override
+    {
+        int dx = abs(toX - fromX), dy = abs(toY - fromY);
+        return dx <= 1 && dy <= 1 && (!board[toX][toY] || board[toX][toY]->getColor() != color);
+    }
+};
+
+class Board
+{
+private:
+    std::vector<std::vector<std::shared_ptr<Piece>>> grid;
+    const int SIZE = 8;
+
+public:
+    Board()
+    {
+        grid = std::vector<std::vector<std::shared_ptr<Piece>>>(SIZE, std::vector<std::shared_ptr<Piece>>(SIZE, nullptr));
+        setupBoard();
+    }
+
+    void setupBoard()
+    {
+        // Set up pawns
+        for (int i = 0; i < SIZE; i++)
+        {
+            grid[1][i] = std::make_shared<Pawn>(Color::Black);
+            grid[6][i] = std::make_shared<Pawn>(Color::White);
+        }
+        // Set up other pieces
+        grid[0][0] = grid[0][7] = std::make_shared<Rook>(Color::Black);
+        grid[0][1] = grid[0][6] = std::make_shared<Knight>(Color::Black);
+        grid[0][2] = grid[0][5] = std::make_shared<Bishop>(Color::Black);
+        grid[0][3] = std::make_shared<Queen>(Color::Black);
+        grid[0][4] = std::make_shared<King>(Color::Black);
+        grid[7][0] = grid[7][7] = std::make_shared<Rook>(Color::White);
+        grid[7][1] = grid[7][6] = std::make_shared<Knight>(Color::White);
+        grid[7][2] = grid[7][5] = std::make_shared<Bishop>(Color::White);
+        grid[7][3] = std::make_shared<Queen>(Color::White);
+        grid[7][4] = std::make_shared<King>(Color::White);
+    }
+
+    bool isValidPosition(int x, int y) const
+    {
+        return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+    }
+
+    bool makeMove(int fromX, int fromY, int toX, int toY, Color playerColor)
+    {
+        if (!isValidPosition(fromX, fromY) || !isValidPosition(toX, toY))
+            return false;
+        if (!grid[fromX][fromY] || grid[fromX][fromY]->getColor() != playerColor)
+            return false;
+        if (!grid[fromX][fromY]->isValidMove(fromX, fromY, toX, toY, grid))
+            return false;
+
+        grid[toX][toY] = grid[fromX][fromY];
+        grid[fromX][fromY] = nullptr;
+        return true;
+    }
+
+    void display() const
+    {
+        std::cout << "\n  a b c d e f g h\n";
+        for (int i = 0; i < SIZE; i++)
+        {
+            std::cout << 8 - i << " ";
+            for (int j = 0; j < SIZE; j++)
+            {
+                if (grid[i][j])
+                {
+                    std::cout << grid[i][j]->getSymbol() << " ";
+                }
+                else
+                {
+                    std::cout << ". ";
+                }
+            }
+            std::cout << 8 - i << "\n";
+        }
+        std::cout << "  a b c d e f g h\n\n";
+    }
+};
+
+class Player
+{
+private:
+    std::string name;
+    Color color;
+
+public:
+    Player(std::string n, Color c) : name(n), color(c) {}
+    std::string getName() const { return name; }
+    Color getColor() const { return color; }
+};
+
+class Chess
+{
+private:
+    Board board;
+    std::vector<Player> players;
+    int currentPlayerIndex;
+
+public:
+    Chess(const Player &player1, const Player &player2) : currentPlayerIndex(0)
+    {
+        players.push_back(player1);
+        players.push_back(player2);
+    }
+
+    void play()
+    {
+        while (true)
+        {
+            board.display();
+            Player &currentPlayer = players[currentPlayerIndex];
+            std::cout << currentPlayer.getName() << "'s turn (" << (currentPlayer.getColor() == Color::White ? "White" : "Black") << "): ";
+
+            std::string from, to;
+            std::cin >> from >> to;
+
+            int fromX = 8 - (from[1] - '0'), fromY = from[0] - 'a';
+            int toX = 8 - (to[1] - '0'), toY = to[0] - 'a';
+
+            if (board.makeMove(fromX, fromY, toX, toY, currentPlayer.getColor()))
+            {
+                currentPlayerIndex = (currentPlayerIndex + 1) % 2;
+            }
+            else
+            {
+                std::cout << "Invalid move! Try again.\n";
+            }
+        }
+    }
+};
+
+int main()
+{
+    Player player1("Player 1", Color::White);
+    Player player2("Player 2", Color::Black);
+    Chess game(player1, player2);
+    std::cout << "Enter moves as 'from to' (e.g., 'e2 e4'):\n";
+    game.play();
+    return 0;
+}
